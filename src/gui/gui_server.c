@@ -235,7 +235,7 @@ static gui_window_t *hit_test(int px, int py) {
     return best;
 }
 
-static void route_input(void) {
+static void route_input() {
     const mouse_state_t *m = input_mouse();
 
     // Keys go to the focused window, or nowhere if nothing has focus.
@@ -330,7 +330,7 @@ static void blit_window(gui_window_t *w) {
     }
 }
 
-static void composite(void) {
+static void composite() {
     uint32_t *dst = fb_buffer();
     size_t total = (size_t)g_screen_w * g_screen_h;
 
@@ -354,16 +354,15 @@ static void composite(void) {
     }
 }
 
-// --- lifecycle -------------------------------------------------------------
 
-int gui_server_window_count(void) {
+int gui_server_window_count() {
     int n = 0;
     for (int i = 0; i < GUI_MAX_WINDOWS; i++)
         if (g_windows[i].state == WIN_NORMAL) n++;
     return n;
 }
 
-int gui_server_init(void) {
+int gui_server_init() {
     memset(g_windows, 0, sizeof(g_windows));
     memset(g_slots, 0, sizeof(g_slots));
 
@@ -431,7 +430,7 @@ int gui_server_init(void) {
     return 0;
 }
 
-void gui_server_run(void) {
+void gui_server_run() {
     while (1) {
         input_poll();
         route_input();
@@ -442,6 +441,6 @@ void gui_server_run(void) {
         // Each pass pushes a full-screen frame, so spinning flat out would burn
         // the only CPU and starve every client. A short sleep caps the redraw
         // rate and leaves the scheduler room to run other processes.
-        usleep(1000);
+        usleep(125);
     }
 }
