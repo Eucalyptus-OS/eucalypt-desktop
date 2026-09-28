@@ -30,3 +30,21 @@ int init_manager() {
     windows->next = NULL;
     return 0;
 }
+
+struct window *create_window(int x, int y, int width, int height) {
+    struct window *new_window = malloc(sizeof(struct window));
+    if (!new_window) {
+        fprintf(stderr, "Failed to allocate memory for new window\n");
+        return NULL;
+    }
+    new_window->x = x;
+    new_window->y = y;
+    new_window->width = width;
+    new_window->height = height;
+    new_window->z_index = 0;
+    new_window->focused = false;
+    new_window->visible = true;
+    new_window->next = windows;
+    windows = new_window;
+    return new_window;
+}

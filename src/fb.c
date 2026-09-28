@@ -26,7 +26,7 @@ static struct fb_info_user g_info;
 static uint32_t *g_shadow;
 static size_t g_shadow_bytes;
 
-int fb_init(void) {
+int fb_init() {
     if (g_fd >= 0) return 0;
 
     g_fd = open(FB_DEVICE, O_RDWR);
@@ -59,7 +59,7 @@ int fb_init(void) {
     return 0;
 }
 
-void fb_release(void) {
+void fb_release() {
     free(g_shadow);
     g_shadow = 0;
     g_shadow_bytes = 0;
@@ -69,13 +69,13 @@ void fb_release(void) {
     }
 }
 
-int fb_width(void) { return (int)g_info.width; }
-int fb_height(void) { return (int)g_info.height; }
-int fb_bpp(void) { return (int)g_info.bpp; }
+int fb_width() { return (int)g_info.width; }
+int fb_height() { return (int)g_info.height; }
+int fb_bpp() { return (int)g_info.bpp; }
 
-uint32_t *fb_buffer(void) { return g_shadow; }
+uint32_t *fb_buffer() { return g_shadow; }
 
-void fb_present(void) {
+void fb_present() {
     if (g_fd < 0 || !g_shadow) return;
     size_t done = 0;
     while (done < g_shadow_bytes) {
@@ -83,4 +83,15 @@ void fb_present(void) {
         if (n <= 0) return;
         done += (size_t)n;
     }
+}
+
+void fb_draw_pixel(int x, int y, uint32_t color) {
+    if (x < 0 || x >= (int)g_info.width || y < 0 || y >= (int)g_info.height)
+        return;
+    g_shadow[y * g_info.width + x] = color;
+}
+
+void fb_clear(uint32_t color) {
+    for (size_t i = 0; i < g_shadow_bytes / sizeof(uint32_t); i++)
+        g_shadow[i] = color;
 }
