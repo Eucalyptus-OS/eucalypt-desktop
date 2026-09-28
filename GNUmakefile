@@ -37,17 +37,20 @@ PROG     := desktop
 LIBS := $(MLIBC_LIB)/libc.a $(MLIBC_LIB)/libssp_nonshared.a $(MLIBC_LIB)/libssp.a \
 $(MLIBC_LIB)/libpthread.a $(MLIBC_LIB)/libm.a $(MLIBC_LIB)/libutil.a
 
-# The whole program is one binary: every .c under src/ is linked together, so
-# window.c and friends are modules rather than separate executables.
-SRCS := $(sort $(wildcard src/*.c))
+SRCS := $(filter-out src/gui/gui_client.c src/gui/gui_demo.c,$(sort $(wildcard src/*.c) $(wildcard src/gui/*.c)))
 OBJS := $(patsubst src/%.c,$(BINDIR)/%.o,$(SRCS))
 DEPS := $(OBJS:.o=.d)
 
 TARGET := $(BINDIR)/$(PROG)
 
+# A second binary: a plain client that asks the compositor for a window.
+DEMO_SRCS := src/gui/gui_demo.c src/gui/gui_client.c
+DEMO_OBJS := $(patsubst src/%.c,$(BINDIR)/%.o,$(DEMO_SRCS))
+DEMO_TARGET := $(BINDIR)/guitest
+
 .PHONY: all clean
 
-all: $(TARGET)
+all: $(TARGET) $(DEMO_TARGET)
 
 $(TARGET): $(OBJS) $(LDSCRIPT) $(LIBS) $(CRTBEGIN) $(CRTEND)
 	@mkdir -p $(dir $@)
@@ -57,9 +60,17 @@ $(TARGET): $(OBJS) $(LDSCRIPT) $(LIBS) $(CRTBEGIN) $(CRTEND)
 		-o $@
 	$(STRIP) --strip-debug $@
 
+$(DEMO_TARGET): $(DEMO_OBJS) $(LDSCRIPT) $(LIBS) $(CRTBEGIN) $(CRTEND)
+	@mkdir -p $(dir $@)
+	$(CC) $(LDFLAGS) -T $(LDSCRIPT) \
+		$(MLIBC_LIB)/crt1.o $(CRTBEGIN) $(DEMO_OBJS) \
+		$(LIBS) $(CRTEND) \
+		-o $@
+	$(STRIP) --strip-debug $@
+
 $(BINDIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(MLIBC_INC) -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) -Isrc -I$(MLIBC_INC) -MMD -MP -c $< -o $@
 
 clean:
 	rm -rf $(BINDIR)

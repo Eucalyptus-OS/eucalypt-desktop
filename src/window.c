@@ -13,7 +13,7 @@ struct window {
     bool focused;
     bool visible;
     struct window *next;
-};
+} __attribute__((packed)); // Packed to avoid padding and ensure the struct is the same size in shared memory.
 
 static struct window *windows = NULL;
 
@@ -31,6 +31,7 @@ int init_manager() {
     return 0;
 }
 
+// When a windows is created it is handed to an app via shared memory. The app can then set the window's properties and the window manager will handle drawing it to the screen.
 struct window *create_window(int x, int y, int width, int height) {
     struct window *new_window = malloc(sizeof(struct window));
     if (!new_window) {

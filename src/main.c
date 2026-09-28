@@ -1,25 +1,20 @@
-#include "window.h"
-#include "fb.h"
+#include "gui/gui_server.h"
+
 #include <stdint.h>
 
-extern void set_background(uint32_t color);
+// The desktop is the compositor. It is the only process that opens /dev/fb0;
+// every other app is handed a shared-memory window and draws into that instead.
+//
+// window.c and background.c are still compiled in and are where a window
+// manager would eventually live, but the compositor loop has to own the
+// framebuffer before anything else can draw.
 
 int main() {
-    if (init_manager() != 0) {
+    if (gui_server_init() != 0) {
         return -1;
     }
 
-    // Must come before any drawing: without it there is no shadow buffer and
-    // fb_clear()/fb_present() silently do nothing.
-    if (fb_init() != 0) {
-        return -1;
-    }
-
-    set_background(0xFF008080);
-
-    while (1) {
-
-    }
+    gui_server_run();
 
     return 0;
 }
