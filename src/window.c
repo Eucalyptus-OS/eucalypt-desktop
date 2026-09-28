@@ -19,12 +19,6 @@ static struct window *windows = NULL;
 
 // Initializing the window manager
 int init_manager() {
-    // We must end the shell process before we can start the window manager
-    if (system("killall -9 shell") != 0) {
-        fprintf(stderr, "Failed to kill shell process\n");
-        return -1;
-    }
-
     // Clear the screen
     printf("\033[2J\033[H");
 
