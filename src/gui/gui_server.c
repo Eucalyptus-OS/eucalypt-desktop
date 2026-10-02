@@ -235,14 +235,33 @@ static gui_window_t *hit_test(int px, int py) {
     return best;
 }
 
-static void route_input() {
+// The window a key press should go to when no window has been clicked yet.
+// Later entries in the table draw on top, so the last match wins, and the
+// cursor sprite is skipped: it is a compositor artefact with no client behind
+// it, so routing input to it would drop the event.
+static gui_window_t *topmost_window(void) {
+    gui_window_t *best = NULL;
+    for (int i = 0; i < GUI_MAX_WINDOWS; i++) {
+        gui_window_t *w = &g_windows[i];
+        if (w->state != WIN_NORMAL || !w->visible) continue;
+        if (w->owner_slot < 0) continue;
+        best = w;
+    }
+    return best;
+}
+
+static void route_input(void) {
     const mouse_state_t *m = input_mouse();
 
-    // Keys go to the focused window, or nowhere if nothing has focus.
     key_event_t keys[16];
     int nk = input_keys(keys, 16);
     for (int i = 0; i < nk; i++) {
+        // Keys go to the focused window, which a click sets. Before any click
+        // there is no focus, so fall back to the topmost real window: without
+        // this, a client that never gets clicked could not be typed at.
         gui_window_t *fw = g_focus_window ? find_window(g_focus_window) : NULL;
+        if (!fw || fw->state != WIN_NORMAL)
+            fw = topmost_window();
         if (!fw) continue;
         gui_event_t ev;
         memset(&ev, 0, sizeof(ev));
@@ -330,7 +349,7 @@ static void blit_window(gui_window_t *w) {
     }
 }
 
-static void composite() {
+static void composite(void) {
     uint32_t *dst = fb_buffer();
     size_t total = (size_t)g_screen_w * g_screen_h;
 
@@ -354,15 +373,16 @@ static void composite() {
     }
 }
 
+// --- lifecycle -------------------------------------------------------------
 
-int gui_server_window_count() {
+int gui_server_window_count(void) {
     int n = 0;
     for (int i = 0; i < GUI_MAX_WINDOWS; i++)
         if (g_windows[i].state == WIN_NORMAL) n++;
     return n;
 }
 
-int gui_server_init() {
+int gui_server_init(void) {
     memset(g_windows, 0, sizeof(g_windows));
     memset(g_slots, 0, sizeof(g_slots));
 
@@ -430,7 +450,7 @@ int gui_server_init() {
     return 0;
 }
 
-void gui_server_run() {
+void gui_server_run(void) {
     while (1) {
         input_poll();
         route_input();
@@ -441,6 +461,6 @@ void gui_server_run() {
         // Each pass pushes a full-screen frame, so spinning flat out would burn
         // the only CPU and starve every client. A short sleep caps the redraw
         // rate and leaves the scheduler room to run other processes.
-        usleep(125);
+        usleep(1000);
     }
 }

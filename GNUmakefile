@@ -37,7 +37,12 @@ PROG     := desktop
 LIBS := $(MLIBC_LIB)/libc.a $(MLIBC_LIB)/libssp_nonshared.a $(MLIBC_LIB)/libssp.a \
 $(MLIBC_LIB)/libpthread.a $(MLIBC_LIB)/libm.a $(MLIBC_LIB)/libutil.a
 
-SRCS := $(filter-out src/gui/gui_client.c src/gui/gui_demo.c,$(sort $(wildcard src/*.c) $(wildcard src/gui/*.c)))
+# The anime art and app are their own binary, not part of the compositor, so
+# they are excluded here. The art is also what pulls in the gfx library, and the
+# compositor has no reason to carry it.
+SRCS := $(filter-out src/gui/gui_client.c src/gui/gui_demo.c \
+                   src/gui/anime_app.c src/gui/anime_art.c,\
+          $(sort $(wildcard src/*.c) $(wildcard src/gui/*.c)))
 OBJS := $(patsubst src/%.c,$(BINDIR)/%.o,$(SRCS))
 DEPS := $(OBJS:.o=.d)
 
@@ -48,9 +53,27 @@ DEMO_SRCS := src/gui/gui_demo.c src/gui/gui_client.c
 DEMO_OBJS := $(patsubst src/%.c,$(BINDIR)/%.o,$(DEMO_SRCS))
 DEMO_TARGET := $(BINDIR)/guitest
 
+# The examples link the standalone gfx library, whose sources are compiled in
+# directly rather than taken from a prebuilt archive, so the freestanding flags
+# and the cross compiler's ABI apply to them too.
+GFX_DIR ?= $(abspath ../eucalypt-gfx)
+GFX_SRCS := $(GFX_DIR)/src/gfx.c $(GFX_DIR)/src/gfx_text.c
+
+# Shared example code, compiled once and linked into each example.
+EX_SHARED    := examples/examples.c
+EX_SHARED_O  := $(BINDIR)/examples/examples.o
+GFX_OBJS     := $(patsubst $(GFX_DIR)/%.c,$(BINDIR)/gfx/%.o,$(GFX_SRCS))
+
+# ex_terminal is not a graphics demo: it drives a shell over pipes. It lives here
+# because it shares the text and event helpers, and because the desktop needs
+# a way to run the other examples without an init hack.
+EXAMPLES := ex_gradient ex_shapes ex_text ex_terminal
+EXAMPLE_TARGETS := $(addprefix $(BINDIR)/,$(EXAMPLES))
+EXAMPLE_OBJS := $(patsubst examples/%.c,$(BINDIR)/examples/%.o,$(EX_SHARED))
+
 .PHONY: all clean
 
-all: $(TARGET) $(DEMO_TARGET)
+all: $(TARGET) $(DEMO_TARGET) $(EXAMPLE_TARGETS)
 
 $(TARGET): $(OBJS) $(LDSCRIPT) $(LIBS) $(CRTBEGIN) $(CRTEND)
 	@mkdir -p $(dir $@)
@@ -68,9 +91,34 @@ $(DEMO_TARGET): $(DEMO_OBJS) $(LDSCRIPT) $(LIBS) $(CRTBEGIN) $(CRTEND)
 		-o $@
 	$(STRIP) --strip-debug $@
 
+# Every example is the same shape: its own main, plus the shared helpers, the
+# GUI client, and gfx. One pattern rule covers them all. It is spelled with a
+# static pattern so it cannot swallow the desktop or demo targets above.
+$(EXAMPLE_TARGETS): $(BINDIR)/%: $(BINDIR)/examples/%.o $(EX_SHARED_O) \
+		$(BINDIR)/gui/gui_client.o $(GFX_OBJS) \
+		$(LDSCRIPT) $(LIBS) $(CRTBEGIN) $(CRTEND)
+	@mkdir -p $(dir $@)
+	$(CC) $(LDFLAGS) -T $(LDSCRIPT) \
+		$(MLIBC_LIB)/crt1.o $(CRTBEGIN) $< $(EX_SHARED_O) \
+		$(BINDIR)/gui/gui_client.o $(GFX_OBJS) \
+		$(LIBS) $(CRTEND) \
+		-o $@
+	$(STRIP) --strip-debug $@
+
+# Anything in this tree may include <eucalypt/gfx.h>, so the gfx include path is
+# on the common rules rather than only for the gfx objects themselves.
 $(BINDIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -Isrc -I$(MLIBC_INC) -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) -Isrc -I$(GFX_DIR)/include -I$(MLIBC_INC) -MMD -MP -c $< -o $@
+
+$(BINDIR)/examples/%.o: examples/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -Iexamples -Isrc -Isrc/gui -I$(GFX_DIR)/include -I$(MLIBC_INC) \
+		-MMD -MP -c $< -o $@
+
+$(BINDIR)/gfx/%.o: $(GFX_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -I$(GFX_DIR)/include -I$(MLIBC_INC) -MMD -MP -c $< -o $@
 
 clean:
 	rm -rf $(BINDIR)
